@@ -1,5 +1,5 @@
 <h1>Java多线程知识点</h1>
-以下Java多线程知识点是基于《Java多线程编程实战指南-核心篇》的总结归纳，强烈建议先完整阅读此书。
+以下Java多线程知识点是基于**《Java多线程编程实战指南-核心篇》**的总结归纳，强烈建议先完整阅读此书。
 
 **带*号的知识点很少考察**
 
@@ -93,8 +93,88 @@ Atomic包介绍(JDK自带)：
 
 ---
 
-## 线程间协作
+## 线程间协作及通信
 
+### Object.wait()Object.notify()
+wait()和notify()用于实现线程的等待和唤醒，使用内部锁
 
+开销及问题(详见《Java多线程编程实战指南-核心篇》 P189)：
+- 过早唤醒
+- 信号丢失
+- 欺骗性唤醒
+- 上下文切换
 
-<a href="https://www.cnblogs.com/dolphin0520/p/3920407.html">ThreadLocal详细介绍</a>
+一般使用notifyAll()进行线程的唤醒，因单个使用notify()容易出错。使用notify()的场景： 1.一次通知只需要唤醒至多一个线程 2.相应对象上的所有等待线程都是同质线程
+
+Condition.await()/Condition.signal()替代Object.wait()/Object.notify()可以避免过早唤醒问题，使用的是显式锁
+
+### * 为什么wait()和notify()方法不放在Thread类中
+Java提供的锁是对象级而不是线程级的，每个对象都有锁，通过线程获取。如果方法定义在Thread类中，那么线程正在等待哪个锁不能明显知道
+
+### * wait()和sleep()的区别
+wait()用于线程间通信，执行时会释放所持有的锁和CPU资源。sleep()仅仅释放CPU资源，让线程等待，但不会释放锁
+
+### * 倒计时协调器 -- CountDownLatch
+**实现一个或多个线程等待其他线程完成一组特定的操作之后才能继续运行的功能**。内部会维护一个用于表示未完成的先觉操作的计数器，计数器不为0时，执行CountDownLatch.await()的线程会被暂停，为0时会唤醒所有CountDownLatch上等待的线程。
+
+若内部错误导致内部的计数无法到0，所有的线程都将一直为WAITING状态。避免方法： 1.确保countDown()方法的调用在代码的正确位置。 2.等待线程在等待先决操作完成的时候指定一个时间限制，超时就会唤醒CountDownLatch上的所有线程
+
+### * 栅栏 -- CyclicBarrier
+多个线程需要等待所有线程执行到代码中某个地方，程序才能继续执行，这时使用CyclicBarrier比较合适。内部维护一个初始为0的计数器，指定一个值，到执行点则计数器+1，并且对应的线程调用CyclicBarrier.await()方法。最后一个执行的线程会唤醒所有等待线程。
+
+### * CountDownLatch vs CyclicBarrier
+对比项|CountDownLatch|CyclicBarrier
+---|:--:|:--:
+**计数器**|减法|加法
+**释放线程条件**|计数为0|计数为指定值
+**利用性**|无法重置，不可重复使用|可以重置为0，重复使用
+**阻塞性**|会阻塞主线程|只会阻塞子线程
+
+### 阻塞队列
+- **ArrayBlockingQueue**： 基于数组。put()、take()使用的是同一个锁，容易导致高争用、上下文切换的问题。适合并发度较低的情况
+- **LinkedBlockingQueue**： 基于链表。put()、take()使用两个锁，垃圾回收的负担较大。适合并发度较高的情况
+- **SynchronousQueue**： take()的时候无元素会阻塞等待，put()只执行一次，知道队列中的元素被消费。适合生产者和消费者速率差不多的情况
+- **Semaphore**： 用于控制流量。acquire()/release()分别用于申请和返回配额。配额不足的时候，acquire会执行线程暂停
+- **Exchanger**： 双缓冲。相当于两个队列，一个容量用完之后，生产者切换到另一个队列中生产，消费者继续在当前队列消费，直到消费完成之后切换队列
+
+#### ThreadLocal
+ThradLocal是典型的牺牲空间换取线程安全的类，详细介绍请看： <a href="https://www.cnblogs.com/dolphin0520/p/3920407.html">ThreadLocal详细介绍</a>
+
+### 死锁产生的条件
+产生死锁必定全部成立，全部成立不一定产生死锁
+1. 资源互斥
+2. 资源不可抢夺
+3. 占用并等待资源
+4. 循环等待资源
+
+### 规避死锁的方法
+- 粗锁法。使用粗粒度锁代替多个锁，降低了并发性并可能导致资源浪费
+- 锁排序法。按一定的顺序申请锁
+- 使用ReentrantLock.tryLock(long time)申请锁
+- 使用锁的替代品
+
+## 线程管理
+
+### 使用线程池的原因
+- 线程的创建、启动、销毁、调度的开销
+- 可以创建的线程的数量其实受CPU限制
+
+### 几个线程池大小的概念
+- 线程池大小： 内部维护的工作者线程数量
+- 当前线程池大小： 实际工作的线程的数量
+- 最大线程池大小： 允许存在的工作者线程的数量上限
+
+### Executor框架
+Executor: void execute(Runnable command)， 其实现类为ThreadPoolExecutor
+ThreadPool.submit(Callable<T>)
+
+### 几个线程池实例
+- newCachePool()： 适合用于执行大量好事短且提交比较频繁的任务
+- newFixedPool()： 适合用于线程数量已知的情况
+- new SingleThreadExecutor()： 适合用来实现生产者 - 单消费者的情况
+
+### Future类
+对于具体的Runnable或者callable任务的执行结果进行取消、查询是否完成、获取结果的类
+
+### 线程池的submit()和execute()方法有何区别
+execute()返回void， submit返回future。execute()会抛出异常，submit()不会抛出异常，但可以用future.get()获取异常信息
