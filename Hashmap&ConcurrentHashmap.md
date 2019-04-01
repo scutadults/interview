@@ -1,5 +1,7 @@
 <h1>Hashmap & ConcurentHashMap</h1>
-Hashmap是java中最常用的集合类，并且jdk在hashmap的基础上将value置空实现了set结构，hashmap也是面试经常考察的点。本文是简单描述hashmap和concurrenthashmap的结构，详细请查看**<a href="http://www.importnew.com/28263.html">Java7/8 中的 HashMap 和 ConcurrentHashMap 全解析</a>**
+Hashmap是java中最常用的集合类，并且jdk在hashmap的基础上将value置空实现了set结构，hashmap也是面试经常考察的点。本文是简单描述hashmap和concurrenthashmap的结构，详细请查看
+
+<a href="http://www.importnew.com/28263.html">Java7/8 中的 HashMap 和 ConcurrentHashMap 全解析</a>
 
 ## 基础知识
 
